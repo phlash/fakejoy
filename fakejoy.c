@@ -16,7 +16,52 @@ static int s_realfd;
 static int s_reads;
 static uint32_t s_version = JS_VERSION;
 static char s_name[] = "[Fakejoy] Logitech Freedom 2.4";
-static volatile int s_inread;
+
+// tracked state (used to detect disconnect)
+static struct {
+	uint8_t btns[KEY_CNT-BTN_MISC];
+	int16_t axes[ABS_CNT];
+	uint8_t nbtns;
+	uint8_t naxes;
+	uint32_t last;
+	int lcnt;
+	int conn;
+} s_fakejoy;
+
+static int fakejoy_detect(struct js_event *js) {
+	// update tracked state
+	switch (js->type & ~JS_EVENT_INIT) {
+	case JS_EVENT_BUTTON:
+		s_fakejoy.btns[js->number] = (uint8_t)js->value;
+		break;
+	case JS_EVENT_AXIS:
+		s_fakejoy.axes[js->number] = js->value;
+		break;
+	}
+	if (js->time == s_fakejoy.last)
+		s_fakejoy.lcnt += 1;
+	else {
+		s_fakejoy.last = js->time;
+		s_fakejoy.lcnt = 0;
+	}
+	// we determine connection state as follows:
+	// 3+ events with the same timestamp
+	// if axis 3 is -32767, then disconnected, otherwise connected
+	if (s_fakejoy.lcnt > 2) {
+		if (-32767==s_fakejoy.axes[3])
+			s_fakejoy.conn = 0;
+		else
+			s_fakejoy.conn = 1;
+	}
+	printf("fakejoy_detect: type=0x%x btns=", js->type);
+	for (int b=0; b<s_fakejoy.nbtns; b++)
+		printf("%d,", s_fakejoy.btns[b]);
+	printf(" axes=");
+	for (int a=0; a<s_fakejoy.naxes; a++)
+		printf("%d,", s_fakejoy.axes[a]);
+	printf(" last=%u lcnt=%d conn=%d\n", s_fakejoy.last, s_fakejoy.lcnt, s_fakejoy.conn);
+	return s_fakejoy.conn;
+}
 
 static void fakejoy_open(fuse_req_t req, struct fuse_file_info *fi) {
 	if (s_realfd>0) {
@@ -32,6 +77,15 @@ static void fakejoy_open(fuse_req_t req, struct fuse_file_info *fi) {
 		fuse_reply_err(req, ENODEV);
 		return;
 	}
+	if (ioctl(s_realfd, JSIOCGBUTTONS, &s_fakejoy.nbtns) ||
+		ioctl(s_realfd, JSIOCGAXES, &s_fakejoy.naxes)) {
+		puts("fakejoy_open: unable to read button/axes counts");
+		fuse_reply_err(req, ENODEV);
+		return;
+	}
+	// assume connected until proven otherwise
+	s_fakejoy.lcnt = 0;
+	s_fakejoy.conn = 1;
 	printf("fakejoy_open(flags=0x%x): ok\n", fi->flags);
 	fuse_reply_open(req, fi);
 }
@@ -41,41 +95,52 @@ static void fakejoy_close(fuse_req_t req, struct fuse_file_info *fi) {
 	if (s_realfd>0)
 		close(s_realfd);
 	s_realfd = 0;
-	printf("\nfakejoy_close(s_inread=%d): ok\n", s_inread);
+	puts("\nfakejoy_close: ok");
 	fuse_reply_err(req, 0);
 }
 
 static void fakejoy_read(fuse_req_t req, size_t size, off_t off,
 			 struct fuse_file_info *fi) {
 	(void)off;
-	s_inread = 1;
 	struct js_event js;
 	if (size < sizeof(js)) {
 		printf("fakejoy_read: buffer too small (%u)\n", size);
 		fuse_reply_err(req, EIO);
 		return;
 	}
-	// poll for data, then decide action based on..
-	int avail = 0;
-	struct pollfd pfd = { s_realfd, POLLIN, 0 };
-	if (poll(&pfd, 1, 0)>0 && (pfd.revents&POLLIN))
-		avail = 1;
-	// no data available & non-blocking mode, bail
-	if (!avail && (fi->flags & O_NONBLOCK)) {
-		fuse_reply_err(req, EAGAIN);
-		return;
-	}
-	// otherwise go read (possibly blocking)
-	int err = read(s_realfd, &js, sizeof(js));
-	if (err!=sizeof(js)) {
-		perror("fakejoy_read");
-		fuse_reply_err(req, err);
-		return;
+	int canret = 0;
+	while (!canret) {
+		// poll for data, then decide action based on..
+		int avail = 0;
+		struct pollfd pfd = { s_realfd, POLLIN, 0 };
+		if (poll(&pfd, 1, 0)>0 && (pfd.revents&POLLIN))
+			avail = 1;
+		// no data available & non-blocking mode, bail
+		if (!avail && (fi->flags & O_NONBLOCK)) {
+			fuse_reply_err(req, EAGAIN);
+			return;
+		}
+		// otherwise go read (possibly blocking)
+		int err = read(s_realfd, &js, sizeof(js));
+		if (err!=sizeof(js)) {
+			perror("fakejoy_read");
+			fuse_reply_err(req, err);
+			return;
+		}
+		// detect disconnect, drop events while disconnected
+		if (!fakejoy_detect(&js)) {
+			// non-blocking mode, we're done
+			if (fi->flags & O_NONBLOCK) {
+				fuse_reply_err(req, EAGAIN);
+				return;
+			}
+		} else {
+			canret = 1;
+		}
 	}
 	printf("fakejoy_read(flags=0x%x size=%d): %d  \r", fi->flags, size, s_reads++);
 	fflush(stdout);
 	fuse_reply_buf(req, (const char *)&js, sizeof(js));
-	s_inread = 0;
 }
 
 static void fakejoy_getx(int cmd, fuse_req_t req) {

@@ -3,7 +3,7 @@
 INCLUDE=$(shell pkg-config --cflags fuse3)
 LIBS=$(shell pkg-config --libs fuse3)
 
-all: bin bin/fakejoy
+all: bin bin/fakejoy bin/evdump
 
 clean:
 	rm -rf bin
@@ -11,7 +11,7 @@ clean:
 bin:
 	mkdir -p bin
 
-bin/fakejoy: bin/fakejoy.o
+bin/%: bin/%.o
 	$(CC) -g -o $@ $< $(LIBS)
 
 bin/%.o: %.c

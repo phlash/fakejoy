@@ -53,13 +53,13 @@ static int fakejoy_detect(struct js_event *js) {
 		else
 			s_fakejoy.conn = 1;
 	}
-	printf("fakejoy_detect: type=0x%x btns=", js->type);
+	/*printf("fakejoy_detect: type=0x%x btns=", js->type);
 	for (int b=0; b<s_fakejoy.nbtns; b++)
 		printf("%d,", s_fakejoy.btns[b]);
 	printf(" axes=");
 	for (int a=0; a<s_fakejoy.naxes; a++)
 		printf("%d,", s_fakejoy.axes[a]);
-	printf(" last=%u lcnt=%d conn=%d\n", s_fakejoy.last, s_fakejoy.lcnt, s_fakejoy.conn);
+	printf(" last=%u lcnt=%d conn=%d\n", s_fakejoy.last, s_fakejoy.lcnt, s_fakejoy.conn);*/
 	return s_fakejoy.conn;
 }
 
@@ -99,6 +99,7 @@ static void fakejoy_close(fuse_req_t req, struct fuse_file_info *fi) {
 	fuse_reply_err(req, 0);
 }
 
+static int s_lconn;
 static void fakejoy_read(fuse_req_t req, size_t size, off_t off,
 			 struct fuse_file_info *fi) {
 	(void)off;
@@ -129,16 +130,22 @@ static void fakejoy_read(fuse_req_t req, size_t size, off_t off,
 		}
 		// detect disconnect, drop events while disconnected
 		if (!fakejoy_detect(&js)) {
+			if (s_lconn)
+				puts("fakejoy_read:disconnect");
+			s_lconn = 0;
 			// non-blocking mode, we're done
 			if (fi->flags & O_NONBLOCK) {
 				fuse_reply_err(req, EAGAIN);
 				return;
 			}
 		} else {
+			if (!s_lconn)
+				puts("fakejoy_read:connect");
+			s_lconn = 1;
 			canret = 1;
 		}
 	}
-	printf("fakejoy_read(flags=0x%x size=%d): %d  \r", fi->flags, size, s_reads++);
+	//printf("fakejoy_read(flags=0x%x size=%d): %d  \r", fi->flags, size, s_reads++);
 	fflush(stdout);
 	fuse_reply_buf(req, (const char *)&js, sizeof(js));
 }

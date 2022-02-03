@@ -11,8 +11,11 @@ clean:
 bin:
 	mkdir -p bin
 
-bin/%: bin/%.o
+bin/fakejoy: bin/fakejoy.o
 	$(CC) -g -o $@ $< $(LIBS)
+
+bin/%: bin/%.o
+	$(CC) -g -o $@ $<
 
 bin/%.o: %.c
 	$(CC) -g -c -o $@ $(INCLUDE) $<

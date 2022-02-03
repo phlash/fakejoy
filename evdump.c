@@ -2,7 +2,6 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <fcntl.h>
-#include <poll.h>
 
 int main(int argc, char **argv) {
 	char *evdev = "/dev/input/by-id/usb-Logitech_Logitech_Freedom_2.4-event-joystick";
@@ -95,10 +94,7 @@ int main(int argc, char **argv) {
 	}
 	puts("");
 	// print incoming events
-	struct pollfd pfd;
-	pfd.fd = efd;
-	pfd.events = POLLIN;
-	while (poll(&pfd, 1, -1)>0) {
+	for(;;) {
 		struct input_event ev;
 		if (read(efd, &ev, sizeof(ev))!=sizeof(ev)) {
 			perror("reading event");

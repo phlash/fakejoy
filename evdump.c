@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <poll.h>
 
 int main(int argc, char **argv) {
 	char *evdev = "/dev/input/by-id/usb-Logitech_Logitech_Freedom_2.4-event-joystick";
@@ -34,7 +35,7 @@ int main(int argc, char **argv) {
 		return 1;
 	}
 	printf("name: %.*s\n", nlen, name);
-	char props[128];
+	char props[INPUT_PROP_CNT/8+1];
 	int plen = ioctl(efd, EVIOCGPROP(sizeof(props)), props);
 	if (plen<0) {
 		perror("ioctl(EVIOCGPROP)");
@@ -43,11 +44,24 @@ int main(int argc, char **argv) {
 	printf("props(%d): ", plen);
 	for (int i=0; i<plen; i++) printf("%02x, ", props[i]);
 	puts("");
+	char ebit[EV_CNT/8];
+	int elen = ioctl(efd, EVIOCGBIT(0,sizeof(ebit)), ebit);
+	if (elen<0) {
+		perror("ioctl(EVIOCGBIT(0))");
+		return 1;
+	}
+	printf("events(%d): ", elen);
+	for (int i=0; i<EV_CNT; i++) {
+		if (ebit[i/8] & (1<<(i%8))) {
+			printf("%02x,", i);
+		}
+	}
+	puts("");
 	char kbit[KEY_CNT/8+1];
 	char keys[KEY_CNT/8+1];
 	int klen = ioctl(efd, EVIOCGBIT(EV_KEY,sizeof(kbit)), kbit);
 	if (klen<0) {
-		perror("ioctl(EVIOCGBIT)");
+		perror("ioctl(EVIOCGBIT(EV_KEY))");
 		return 1;
 	}
 	klen = ioctl(efd, EVIOCGKEY(sizeof(keys)), keys);
@@ -65,7 +79,7 @@ int main(int argc, char **argv) {
 	char abit[ABS_CNT/8+1];
 	int alen = ioctl(efd, EVIOCGBIT(EV_ABS,sizeof(abit)), abit);
 	if (alen<0) {
-		perror("ioctl(EVIOCGBIT)");
+		perror("ioctl(EVIOCGBIT(EV_ABS))");
 		return 1;
 	}
 	printf("abs(%d):\n", alen);
@@ -81,8 +95,15 @@ int main(int argc, char **argv) {
 	}
 	puts("");
 	// print incoming events
-	struct input_event ev;
-	while (read(efd, &ev, sizeof(ev))>0) {
+	struct pollfd pfd;
+	pfd.fd = efd;
+	pfd.events = POLLIN;
+	while (poll(&pfd, 1, -1)>0) {
+		struct input_event ev;
+		if (read(efd, &ev, sizeof(ev))!=sizeof(ev)) {
+			perror("reading event");
+			return 1;
+		}
 		printf("type: %04x code: %04x val: %i\n", ev.type, ev.code, ev.value);
 	}
 	return 0;

@@ -1,0 +1,181 @@
+<PropertyList>
+
+  <name>[Fakejoy] Logitech Freedom 2.4</name>
+  <debug-events type="bool">false</debug-events>
+
+  <event>
+    <desc>Aileron</desc>
+    <name>abs-x-translate</name>
+    <dead-band>0.11</dead-band>
+    <binding>
+      <command>property-scale</command>
+      <property>/controls/flight/aileron</property>
+      <offset>-0.5</offset>
+      <factor>1.5</factor>
+    </binding>
+  </event>
+
+  <event>
+    <desc>Elevator</desc>
+    <name>abs-y-translate</name>
+    <dead-band>0.16</dead-band>
+    <binding>
+      <command>property-scale</command>
+      <property>/controls/flight/elevator</property>
+      <offset>-0.5</offset>
+      <factor>-1.5</factor>
+    </binding>
+  </event>
+
+  <event>
+    <desc>Rudder</desc>
+    <name>abs-z-rotate</name>
+    <dead-band>0.17</dead-band>
+    <binding>
+      <command>property-scale</command>
+      <property>/controls/flight/rudder</property>
+      <offset>-0.5</offset>
+      <factor>1.5</factor>
+    </binding>
+  </event>
+
+  <event>
+    <desc>Throttle</desc>
+    <name>abs-throttle</name>
+    <binding>
+      <command>property-scale</command>
+      <property>/controls/engines/throttle-all</property>
+      <offset>-0.5</offset>
+      <factor>2.0</factor>
+    </binding>
+  </event>
+
+  <event>
+    <desc>View Pan</desc>
+    <name>abs-hat0-x</name>
+    <binding>
+      <command>nasal</command>
+      <script>testjoy.dopan(0, cmdarg().getNode("setting").getValue())</script>
+    </binding>
+  </event>
+
+  <event>
+    <desc>View Elevation</desc>
+    <name>abs-hat0-y</name>
+    <binding>
+      <command>nasal</command>
+      <script>testjoy.dopan(1, cmdarg().getNode("setting").getValue())</script>
+    </binding>
+  </event>
+
+  <event>
+    <desc>Brakes</desc>
+    <name>button-thumb</name>
+    <binding>
+      <command>nasal</command>
+      <script>controls.applyBrakes(1)</script>
+    </binding>
+    <mod-up>
+      <binding>
+        <command>nasal</command>
+        <script>controls.applyBrakes(0)</script>
+      </binding>
+    </mod-up>
+  </event>
+
+  <event>
+    <desc>Elevator Trim Backward</desc>
+    <name>button-thumb2</name>
+    <binding>
+      <command>nasal</command>
+      <script>controls.elevatorTrim(-0.75)</script>
+    </binding>
+  </event>
+
+  <event>
+    <desc>Flaps Down</desc>
+    <name>button-top</name>
+    <binding>
+      <command>nasal</command>
+      <script>controls.flapsDown(1)</script>
+    </binding>
+    <mod-up>
+      <binding>
+        <command>nasal</command>
+        <script>controls.flapsDown(0)</script>
+      </binding>
+    </mod-up>
+  </event>
+
+  <event>
+    <desc>Elevator Trim Forward</desc>
+    <name>button-top2</name>
+    <binding>
+      <command>nasal</command>
+      <script>controls.elevatorTrim(0.75)</script>
+    </binding>
+  </event>
+
+  <event>
+    <desc>Flaps Up</desc>
+    <name>button-pinkie</name>
+    <binding>
+      <command>nasal</command>
+      <script>controls.flapsDown(-1)</script>
+    </binding>
+    <mod-up>
+      <binding>
+        <command>nasal</command>
+        <script>controls.flapsDown(0)</script>
+      </binding>
+    </mod-up>
+  </event>
+
+  <event>
+    <desc>Left Brake</desc>
+    <name>button-base</name>
+    <binding>
+      <command>nasal</command>
+      <script>controls.applyBrakes(1, -1)</script>
+    </binding>
+    <mod-up>
+      <binding>
+        <command>nasal</command>
+        <script>controls.applyBrakes(0, -1)</script>
+      </binding>
+    </mod-up>
+  </event>
+
+  <event>
+    <desc>Right Brake</desc>
+    <name>button-base2</name>
+    <binding>
+      <command>nasal</command>
+      <script>controls.applyBrakes(1, 1)</script>
+    </binding>
+    <mod-up>
+      <binding>
+        <command>nasal</command>
+        <script>controls.applyBrakes(0, 1)</script>
+      </binding>
+    </mod-up>
+  </event>
+
+  <event>
+    <desc>Landing Gear Toggle</desc>
+    <name>button-base3</name>
+    <binding>
+      <command>nasal</command>
+      <script>controls.gearToggle()</script>
+    </binding>
+  </event>
+
+  <event>
+    <desc>View Cycle</desc>
+    <name>button-base4</name>
+    <binding>
+      <command>nasal</command>
+      <script>view.stepView(1)</script>
+    </binding>
+  </event>
+</PropertyList>

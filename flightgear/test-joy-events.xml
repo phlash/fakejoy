@@ -88,8 +88,14 @@
     <name>button-thumb2</name>
     <binding>
       <command>nasal</command>
-      <script>controls.elevatorTrim(-0.75)</script>
+      <script>testjoy.dopan(2, -1)</script>
     </binding>
+    <mod-up>
+      <binding>
+        <command>nasal</command>
+        <script>testjoy.dopan(2, 0)</script>
+      </binding>
+    </mod-up>
   </event>
 
   <event>
@@ -112,8 +118,14 @@
     <name>button-top2</name>
     <binding>
       <command>nasal</command>
-      <script>controls.elevatorTrim(0.75)</script>
+      <script>testjoy.dopan(2, 1)</script>
     </binding>
+    <mod-up>
+      <binding>
+        <command>nasal</command>
+        <script>testjoy.dopan(2, 0)</script>
+      </binding>
+    </mod-up>
   </event>
 
   <event>

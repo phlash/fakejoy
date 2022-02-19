@@ -26,6 +26,7 @@ typedef struct {
 
 static volatile int done;
 void trap(int sig) {
+    fprintf(stderr, "SIG:%d\n", sig);
     done = 1;
 }
 
@@ -49,13 +50,32 @@ static int send_event(int uifd, __u16 type, __u16 code, __s32 value) {
 int main(int argc, char **argv) {
     char *evdev = "/dev/input/by-id/usb-Logitech_Logitech_Freedom_2.4-event-joystick";
     char *fake = "[Fakejoy] Logitech Freedom 2.4";
+    char *logf = "/tmp/fakeev.log";
+    int backgnd = 0;
     for (int a=1; a<argc; a++) {
         if (strncmp(argv[a],"-d",2)==0)
             evdev = argv[++a];
         else if (strncmp(argv[a],"-f",2)==0)
             fake = argv[++a];
+        else if (strncmp(argv[a],"-b",2)==0)
+            backgnd = 1;
+        else if (strncmp(argv[a],"-l",2)==0)
+            logf = argv[++a];
         else
-            return printf("usage: %s [-d <real device:%s>] [-f <fake device:%s>\n", argv[0], evdev, fake);
+            return printf("usage: %s [-b [-l <logfile:%s>]] [-d <real device:%s>] [-f <fake device:%s>]\n", argv[0], logf, evdev, fake);
+    }
+    if (backgnd) {
+        // fork/detach ourselves
+        if (fork())
+            return 0;
+        // attach stdin to /dev/null, stdout/stderr output to a log file
+        dup2(open("/dev/null", O_RDONLY), 0);
+        dup2(open(logf, O_CREAT|O_APPEND|O_WRONLY, 0666), 1);
+        dup2(1, 2);
+        setsid();
+    } else {
+        // foreground - trap Ctrl-C
+        signal(SIGINT, trap);
     }
     printf("opening real device: %s\n", evdev);
     int evfd = open(evdev, O_RDONLY);
@@ -147,7 +167,6 @@ int main(int argc, char **argv) {
         return 1;
     }
     // read events, update accumulated state..
-    signal(SIGINT, trap);
     joystate_t pjoy = {0};
     int first = 1;
     while (!done) {
@@ -210,16 +229,17 @@ int main(int argc, char **argv) {
             // push SYN to flush out
             send_event(uifd, EV_SYN, SYN_REPORT, 0);
         }
-        printf("X:%04d Y:%04d R:%03d T:%03d B:%d%d%d%d%d%d%d%d%d%d H:%c%c O:%d\r",
+        if (!backgnd) printf("X:%04d Y:%04d R:%03d T:%03d B:%d%d%d%d%d%d%d%d%d%d H:%c%c O:%d\r",
             pjoy.axes[ABS_X], pjoy.axes[ABS_Y], pjoy.axes[ABS_RZ], pjoy.axes[ABS_THROTTLE],
             pjoy.keys[BTN_TRIGGER], pjoy.keys[BTN_THUMB], pjoy.keys[BTN_THUMB2],
             pjoy.keys[BTN_TOP], pjoy.keys[BTN_TOP2], pjoy.keys[BTN_PINKIE],
             pjoy.keys[BTN_BASE], pjoy.keys[BTN_BASE2], pjoy.keys[BTN_BASE3], pjoy.keys[BTN_BASE4],
             '='+pjoy.axes[ABS_HAT0X], '='+pjoy.axes[ABS_HAT0Y], joy.offline);
-        fflush(stdout);
+            fflush(stdout);
     }
     ioctl(uifd, UI_DEV_DESTROY);
     close(uifd);
     close(evfd);
+    fprintf(stderr, "fakeev: terminating\n");
     return 0;
 }

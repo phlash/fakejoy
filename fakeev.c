@@ -30,6 +30,17 @@ void trap(int sig) {
     done = 1;
 }
 
+typedef struct {
+    __s32 dlow;
+    __s32 dhigh;
+} deadzone_t;
+
+static __s32 deadzone(deadzone_t *zones, int axis, __s32 value) {
+    if (value>=zones[axis].dlow && value<=zones[axis].dhigh)
+        return (zones[axis].dlow+zones[axis].dhigh)/2;
+    return value;
+}
+
 static int send_event(int uifd, __u16 type, __u16 code, __s32 value) {
     struct input_event evt;
     gettimeofday(&evt.time, NULL);
@@ -143,9 +154,11 @@ int main(int argc, char **argv) {
             memcpy(axes, bits, naxes);
         }
     }
-    // accumulated state
+    // accumulated state & deadzones
     joystate_t joy = {0};
-    // read axis info, pre-populate values
+    deadzone_t zones[ABS_CNT];
+    memset(zones, 0, sizeof(zones));
+    // read axis info, pre-populate values, calculate deadzones
     for (int a=0; a<naxes*8; a++) {
         if (axes[a/8] & (1<<a%8)) {
             struct uinput_abs_setup abs_setup;
@@ -159,6 +172,14 @@ int main(int argc, char **argv) {
                 return 1;
             }
             joy.axes[a] = abs_setup.absinfo.value;
+            zones[a].dlow = (abs_setup.absinfo.minimum+abs_setup.absinfo.maximum)/2-abs_setup.absinfo.flat;
+            zones[a].dhigh = (abs_setup.absinfo.minimum+abs_setup.absinfo.maximum)/2+abs_setup.absinfo.flat;
+            printf("axis[%d]: min=%d max=%d fuzz=%d flat=%d: dlow=%d dhigh=%d\n", a,
+                abs_setup.absinfo.minimum,
+                abs_setup.absinfo.maximum,
+                abs_setup.absinfo.fuzz,
+                abs_setup.absinfo.flat,
+				zones[a].dlow, zones[a].dhigh);
         }
     }
     // create the fake device!
@@ -188,7 +209,7 @@ int main(int argc, char **argv) {
             break;
         // update accumulated state, go round again
         case EV_ABS:
-            joy.axes[evt.code % ABS_CNT] = evt.value;
+            joy.axes[evt.code % ABS_CNT] = deadzone(zones, evt.code % ABS_CNT, evt.value);
             continue;
         case EV_KEY:
             joy.keys[evt.code % KEY_CNT] = (__u8)evt.value;

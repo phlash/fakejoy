@@ -31,14 +31,20 @@ void trap(int sig) {
 }
 
 typedef struct {
+    __s32 min;
+    __s32 max;
     __s32 dlow;
     __s32 dhigh;
 } deadzone_t;
 
 static __s32 deadzone(deadzone_t *zones, int axis, __s32 value) {
-    if (value>=zones[axis].dlow && value<=zones[axis].dhigh)
-        return (zones[axis].dlow+zones[axis].dhigh)/2;
-    return value;
+    deadzone_t *dz = zones+axis;
+    __s32 rv = (dz->dlow+dz->dhigh)/2;
+    if (value > dz->dhigh)
+        rv += ((value - dz->dhigh) * (dz->max - rv)) / (dz->max - dz->dhigh);
+    else if (value < dz->dlow)
+        rv -= ((dz->dlow - value) * (rv - dz->min)) / (dz->dlow - dz->min);
+    return rv;
 }
 
 static int send_event(int uifd, __u16 type, __u16 code, __s32 value) {
@@ -172,6 +178,8 @@ int main(int argc, char **argv) {
                 return 1;
             }
             joy.axes[a] = abs_setup.absinfo.value;
+            zones[a].min = abs_setup.absinfo.minimum;
+            zones[a].max = abs_setup.absinfo.maximum;
             zones[a].dlow = (abs_setup.absinfo.minimum+abs_setup.absinfo.maximum)/2-abs_setup.absinfo.flat;
             zones[a].dhigh = (abs_setup.absinfo.minimum+abs_setup.absinfo.maximum)/2+abs_setup.absinfo.flat;
             printf("axis[%d]: min=%d max=%d fuzz=%d flat=%d: dlow=%d dhigh=%d\n", a,
@@ -209,7 +217,7 @@ int main(int argc, char **argv) {
             break;
         // update accumulated state, go round again
         case EV_ABS:
-            joy.axes[evt.code % ABS_CNT] = deadzone(zones, evt.code % ABS_CNT, evt.value);
+            joy.axes[evt.code % ABS_CNT] = evt.value;
             continue;
         case EV_KEY:
             joy.keys[evt.code % KEY_CNT] = (__u8)evt.value;
@@ -236,7 +244,7 @@ int main(int argc, char **argv) {
             for (int a=0; a<ABS_CNT; a++) {
                 if (pjoy.axes[a] != joy.axes[a]) {
                     pjoy.axes[a] = joy.axes[a];
-                    if (send_event(uifd, EV_ABS, a, pjoy.axes[a]))
+                    if (send_event(uifd, EV_ABS, a, deadzone(zones, a, pjoy.axes[a])))
                         done = 1;
                 }
             }
@@ -251,7 +259,10 @@ int main(int argc, char **argv) {
             send_event(uifd, EV_SYN, SYN_REPORT, 0);
         }
         if (!backgnd) printf("X:%04d Y:%04d R:%03d T:%03d B:%d%d%d%d%d%d%d%d%d%d H:%c%c O:%d\r",
-            pjoy.axes[ABS_X], pjoy.axes[ABS_Y], pjoy.axes[ABS_RZ], pjoy.axes[ABS_THROTTLE],
+            deadzone(zones, ABS_X, pjoy.axes[ABS_X]),
+            deadzone(zones, ABS_Y, pjoy.axes[ABS_Y]),
+            deadzone(zones, ABS_RZ, pjoy.axes[ABS_RZ]),
+            deadzone(zones, ABS_THROTTLE, pjoy.axes[ABS_THROTTLE]),
             pjoy.keys[BTN_TRIGGER], pjoy.keys[BTN_THUMB], pjoy.keys[BTN_THUMB2],
             pjoy.keys[BTN_TOP], pjoy.keys[BTN_TOP2], pjoy.keys[BTN_PINKIE],
             pjoy.keys[BTN_BASE], pjoy.keys[BTN_BASE2], pjoy.keys[BTN_BASE3], pjoy.keys[BTN_BASE4],

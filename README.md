@@ -20,14 +20,14 @@ A test program in `evdump.c` simply prints values from the requested device.
 
 ## Build / Run
 
-Prerequisites: `build-essentials`, `libcuse-dev` if you are interested in `fakejoy` (you are not!).
+Prerequisites: `build-essentials`, (`libcuse-dev` if you are interested in `fakejoy` - you are not!). Note that `fakeev` must run as
+`root` to enable the creation of a new device node.. unless someone can come up with the magic kernel `CAPS` options to assign to a user?
 
 ```bash
 % make
 % ls -l bin
 -rwxr-xr-x 1 phlash phlash 19784 Feb  3 15:11 evdump
 -rwxr-xr-x 1 phlash phlash 22808 Feb  3 15:38 fakeev
--rwxr-xr-x 1 phlash phlash 25512 Feb  3 13:43 fakejoy
 % su
 # bin/fakeev (it's a foreground program, not a daemon)
 ```
@@ -44,9 +44,9 @@ Go run your game and choose `[Fakejoy] Logitech Freedom 2.4` :smile:
 `fakeev.c` uses the Linux `uinput` loopback API to emulate an input device, wrapping the real device and filtering reports. It passes through
 all the device capabilities, axes, keys, etc. The filtering is specifically tailored to my Freedom 2.4, YYMV :smile:
 
-NB: I have had to blacklist the `joydev` kernel driver (putting `backlist joydev` in `/etc/modprobe.d/blacklist-joysticks.conf`) to prevent joystick API
+NB: I have had to blacklist the `joydev` kernel driver (putting `blacklist joydev` in `/etc/modprobe.d/blacklist-joysticks.conf`) to prevent joystick API
 devices appearing (as Flightgear cannot be configured to ignore them), again YMMV.
 
 Specifically for Flightgear, you may also want to take the `test-joy-events.xml` and `testjoy.nas` files from the `flightgear` folder and place in your
-home folder as `~/.fgfs/Input/Event/test-joy-events.xml` & `~/.fgfs.Nasal/testjoy.nas` respectively. This _should_ configure Flightgear to use the fake
+home folder as `~/.fgfs/Input/Event/test-joy-events.xml` & `~/.fgfs/Nasal/testjoy.nas` respectively. This _should_ configure Flightgear to use the fake
 joystick, and not the real one, and map the axes and controls to something saneish. Feel free to edit these files, they are quite self-explanatory.
